@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "dev": "millennium-ttc --build dev",
+    "build": "millennium-ttc --build prod"
+  },
+  "type": "module",
+  "name": "kitsune-mica",
+  "version": "1.0.0",
+  "description": "Personal fork of dwmx fixing the main-window-not-patched bug.",
+  "main": "./frontend/index.jsx",
+  "author": "Kitsune",
+  "license": "MIT",
+  "dependencies": {
+    "@steambrew/client": "^5.5.14",
+    "@steambrew/ttc": "^2.7.5"
+  }
+}

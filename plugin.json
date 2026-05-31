@@ -1,0 +1,7 @@
+{
+	"$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/sys/plugin-schema.json",
+	"common_name": "Kitsune Mica",
+	"name": "kitsune-mica",
+	"description": "Personal fork of dwmx with the main-window-not-patched bug fixed. Enables Mica/Acrylic backdrop on the Steam client.",
+	"backendType": "lua"
+}
