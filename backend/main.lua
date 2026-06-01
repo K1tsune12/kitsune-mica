@@ -22,7 +22,12 @@ typedef LONG_PTR LPARAM;
 typedef unsigned int UINT;
 typedef long HRESULT;
 typedef int INT;
-typedef unsigned long SIZE_T;
+// Kitsune fix #2: SIZE_T is pointer-sized (= ULONG_PTR) — 8 bytes on x64, not 4.
+// Upstream declared it as `unsigned long` (4 bytes) which made WINDOWCOMPOSITIONATTRIBDATA
+// 4 bytes too small. Older Windows versions tolerated the mismatch silently; newer ones
+// (post KB5089549, May 2026) validate stricter and crash the process with ACCESS_VIOLATION
+// (0xC0000005) when ulDataSize is read as garbage.
+typedef uintptr_t SIZE_T;
 typedef char CHAR;
 typedef CHAR *LPSTR;
 
