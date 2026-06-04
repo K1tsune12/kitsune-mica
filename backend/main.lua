@@ -51,9 +51,16 @@ typedef struct {
 
 static const int TH32CS_SNAPPROCESS = 0x00000002;
 
-typedef int (__stdcall *WNDENUMPROC)(HWND, LPARAM);
-BOOL EnumWindows(WNDENUMPROC lpEnumFunc, LPARAM lParam);
+// Kitsune fix #3: avoid FFI callbacks entirely.
+// Two minidumps from the previous implementation crashed at the EXACT same instruction
+// inside millennium.luavm64.exe (offset 0x789EF) reading NULL+0x91 — a deterministic null
+// deref inside the Lua VM, triggered by our use of EnumWindows with an FFI callback that
+// re-enters Lua. Walk top-level windows with GetTopWindow + GetWindow(GW_HWNDNEXT)
+// instead — pure Lua loop, no callback. No re-entry, no callback lifetime concerns.
+HWND GetTopWindow(HWND hWndParent);
+HWND GetWindow(HWND hWnd, UINT uCmd);
 DWORD GetWindowThreadProcessId(HWND hWnd, DWORD* lpdwProcessId);
+BOOL IsWindow(HWND hWnd);
 int WideCharToMultiByte(UINT CodePage, DWORD dwFlags, const WCHAR *lpWideCharStr, int cchWideChar, char *lpMultiByteStr, int cbMultiByte, const char *lpDefaultChar, int *lpUsedDefaultChar);
 HRESULT DwmSetWindowAttribute(HWND hwnd, DWORD dwAttribute, void* pvAttribute, DWORD cbAttribute);
 
@@ -92,11 +99,15 @@ local DWMWCP_ROUND = 2
 local IS_CORNER_PREFERENCE_COMPATIBLE = true
 local IS_BLUR_BEHIND_COMPATIBLE = true
 
--- Global state for window enumeration
-local current_target_pids = {}
+local GW_HWNDNEXT = 2
 
--- Single reusable callback - created once and reused
-local window_enum_callback = nil
+-- Throttle: never run PatchAllWindows more than once every PATCH_THROTTLE_MS.
+local last_patch_time = 0
+local PATCH_THROTTLE_MS = 3000
+
+-- Hard cap on window iteration. Desktop Z-order is typically <1k top-level windows;
+-- 10k is a safety net against any future Win11 weirdness producing a cyclic list.
+local MAX_WINDOW_ITER = 10000
 
 -- cast wchar to utf8 string. 
 -- 260 == MAX_PATH, we assume steam is not running from a path longer than that.
@@ -179,41 +190,57 @@ local function PatchWindowContext(hwnd)
     end
 end
 
-local function init_window_enum_callback()
-    if window_enum_callback then return end
-
-    window_enum_callback = ffi.cast("WNDENUMPROC", function(hwnd, lParam)
-        local out = ffi.new("DWORD[1]")
-        C.GetWindowThreadProcessId(hwnd, out)
-        local window_pid = tonumber(out[0])
-        for _, target_pid in ipairs(current_target_pids) do
-            if window_pid == target_pid then
-                local ok, err = pcall(PatchWindowContext, hwnd)
-                if not ok then
-                    logger:error(string.format("[PatchAllWindows] Failed to patch hwnd=%s, error: %s", tostring(hwnd), tostring(err)))
-                end
-                break
-            end
-        end
-        return 1 
-    end)
+-- Get the PID owning a given top-level window. Returns 0 on error/invalid.
+local function pid_of(hwnd)
+    if hwnd == nil then return 0 end
+    -- IsWindow returns BOOL; treat 0 as invalid.
+    if user32.IsWindow(hwnd) == 0 then return 0 end
+    local out = ffi.new("DWORD[1]")
+    local tid = C.GetWindowThreadProcessId(hwnd, out)
+    if tid == 0 then return 0 end
+    return tonumber(out[0]) or 0
 end
 
 function PatchAllWindows()
-    init_window_enum_callback() 
+    local now = os.clock() * 1000
+    if (now - last_patch_time) < PATCH_THROTTLE_MS then return false end
+    last_patch_time = now
+
     local targets = find_pids_by_name("steamwebhelper.exe")
     if #targets == 0 then
         logger:info("[PatchAllWindows] No steamwebhelper.exe processes found.")
         return false
     end
-    current_target_pids = targets
-    local ok_enum, err = pcall(function()
-        C.EnumWindows(window_enum_callback, 0)
-    end)
-    if not ok_enum then
-        logger:error(string.format("[PatchAllWindows] Failed to enumerate windows, error: %s", tostring(err)))
-        return false
+
+    -- Build a O(1) PID lookup table.
+    local target_set = {}
+    for _, pid in ipairs(targets) do target_set[pid] = true end
+
+    -- Walk top-level windows in Z-order using GetTopWindow + GetWindow(GW_HWNDNEXT).
+    -- This is a pure Lua loop calling Win32 functions one at a time — no FFI callback,
+    -- no re-entrant Lua-from-C. Avoids the millennium.luavm64.exe crash at offset 0x789EF.
+    local hwnd = user32.GetTopWindow(nil)
+    local visited = 0
+    local patched = 0
+
+    while hwnd ~= nil and visited < MAX_WINDOW_ITER do
+        visited = visited + 1
+        local pid = pid_of(hwnd)
+        if pid ~= 0 and target_set[pid] then
+            local ok, err = pcall(PatchWindowContext, hwnd)
+            if ok then
+                patched = patched + 1
+            else
+                logger:error(string.format("[PatchAllWindows] Patch failed: %s", tostring(err)))
+            end
+        end
+        hwnd = user32.GetWindow(hwnd, GW_HWNDNEXT)
     end
+
+    if visited >= MAX_WINDOW_ITER then
+        logger:error(string.format("[PatchAllWindows] Hit MAX_WINDOW_ITER (%d) — Z-order walk truncated.", MAX_WINDOW_ITER))
+    end
+
     return true
 end
 
@@ -225,9 +252,6 @@ end
 
 local function on_unload()
     logger:info("Plugin unloaded")
-    -- Clean up callback if needed (though FFI callbacks are GC'd automatically)
-    window_enum_callback = nil
-    current_target_pids = {}
 end
 
 local function on_frontend_loaded()
