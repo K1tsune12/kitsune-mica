@@ -1,6 +1,6 @@
 import { callable, ConfirmModal, pluginSelf, showModal } from '@steambrew/client';
 
-type OriginalOpenFunction = (url?: string, target?: string, features?: string, replace?: boolean) => Window | null;
+type OriginalOpenFunction = (url?: string | URL, target?: string, features?: string, replace?: boolean) => Window | null;
 const originalOpen: OriginalOpenFunction = window.open;
 
 const Patches = {
@@ -8,7 +8,7 @@ const Patches = {
 	NEW_WINDOW_FLAG: 274,
 };
 
-window.open = function (url?: string, target?: string, features?: string, replace?: boolean): Window | null {
+window.open = function (url?: string | URL, target?: string, features?: string, replace?: boolean): Window | null {
 	if (!url) {
 		return originalOpen(url, target, features, replace);
 	}
