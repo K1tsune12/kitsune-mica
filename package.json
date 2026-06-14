@@ -6,7 +6,7 @@
   "type": "module",
   "name": "kitsune-mica",
   "version": "1.0.3",
-  "description": "Mica/acrylic backdrop and rounded corners for the Steam client.",
+  "description": "Mica/acrylic backdrop for the Steam client.",
   "main": "./frontend/index.jsx",
   "author": "Kitsune",
   "license": "MIT",

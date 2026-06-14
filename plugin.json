@@ -2,6 +2,6 @@
 	"$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/sys/plugin-schema.json",
 	"common_name": "Kitsune Mica",
 	"name": "kitsune-mica",
-	"description": "Adds a Mica/acrylic backdrop and rounded corners to the Steam client.",
+	"description": "Adds a Mica/acrylic backdrop to the Steam client.",
 	"backendType": "lua"
 }

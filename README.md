@@ -1,6 +1,6 @@
 # Kitsune Mica 🦊
 
-A [Millennium](https://github.com/SteamClientHomebrew/Millennium) plugin that gives the Steam client a translucent **Mica / acrylic backdrop** and **rounded corners**.
+A [Millennium](https://github.com/SteamClientHomebrew/Millennium) plugin that gives the Steam client a translucent **Mica / acrylic backdrop**.
 
 Fork of [dwmx](https://github.com/shdwmtr/dwmx), with the main Steam window now included and a few stability fixes.
 
@@ -8,7 +8,7 @@ Fork of [dwmx](https://github.com/shdwmtr/dwmx), with the main Steam window now 
 
 - Windows 11
 - Transparency effects turned **on** (Settings → Personalization → Colors)
-- A theme with transparent backgrounds — e.g. [Kitsune Theme](https://github.com/K1tsune12/steam-kitsune-theme) or [SpaceTheme](https://github.com/SpaceTheme/Steam)
+- A theme with transparent backgrounds - e.g. [Kitsune Theme](https://github.com/K1tsune12/steam-kitsune-theme) or [SpaceTheme](https://github.com/SpaceTheme/Steam)
 
 ## Install
 
@@ -26,11 +26,11 @@ pnpm build
 
 ## Changelog
 
-- **v1.0.3** — Fixed an occasional crash when launching Steam. Minor cleanup.
-- **v1.0.2** — Fixed a Steam client crash.
-- **v1.0.1** — Stability fix for newer Windows.
-- **v1.0.0** — First release: Mica/acrylic backdrop and rounded corners, with the main window included.
+- **v1.0.3** - Fixed an occasional crash when launching Steam. Minor cleanup.
+- **v1.0.2** - Fixed a Steam client crash.
+- **v1.0.1** - Stability fix for newer Windows.
+- **v1.0.0** - First release: Mica/acrylic backdrop, with the main window included.
 
 ## Credits
 
-Based on [dwmx](https://github.com/shdwmtr/dwmx) by shdwmtr. MIT licensed — see [LICENSE](./LICENSE).
+Based on [dwmx](https://github.com/shdwmtr/dwmx) by shdwmtr. MIT licensed - see [LICENSE](./LICENSE).
