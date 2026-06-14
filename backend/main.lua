@@ -12,21 +12,14 @@ typedef void* HANDLE;
 typedef void* HWND;
 typedef const wchar_t* LPCWSTR;
 typedef wchar_t WCHAR;
-// Kitsune fix: upstream used `unsigned long` for ULONG_PTR which is 4 bytes on Windows
-// (LLP64 model). The real ULONG_PTR / LONG_PTR are pointer-sized = 8 bytes on x64.
-// With the wrong size, PROCESSENTRY32W ends up 12 bytes too small, so dwSize doesn't
-// match what Process32FirstW expects and the call silently fails (returns 0).
+// Pointer-sized on x64 (LLP64) — must NOT be `unsigned long` (4 bytes) or the Win32 structs misalign.
 typedef uintptr_t ULONG_PTR;
 typedef intptr_t LONG_PTR;
 typedef LONG_PTR LPARAM;
 typedef unsigned int UINT;
 typedef long HRESULT;
 typedef int INT;
-// Kitsune fix #2: SIZE_T is pointer-sized (= ULONG_PTR) — 8 bytes on x64, not 4.
-// Upstream declared it as `unsigned long` (4 bytes) which made WINDOWCOMPOSITIONATTRIBDATA
-// 4 bytes too small. Older Windows versions tolerated the mismatch silently; newer ones
-// (post KB5089549, May 2026) validate stricter and crash the process with ACCESS_VIOLATION
-// (0xC0000005) when ulDataSize is read as garbage.
+// Pointer-sized too (8 bytes on x64) — keeps WINDOWCOMPOSITIONATTRIBDATA correctly sized.
 typedef uintptr_t SIZE_T;
 typedef char CHAR;
 typedef CHAR *LPSTR;
@@ -51,12 +44,8 @@ typedef struct {
 
 static const int TH32CS_SNAPPROCESS = 0x00000002;
 
-// Kitsune fix #3: avoid FFI callbacks entirely.
-// Two minidumps from the previous implementation crashed at the EXACT same instruction
-// inside millennium.luavm64.exe (offset 0x789EF) reading NULL+0x91 — a deterministic null
-// deref inside the Lua VM, triggered by our use of EnumWindows with an FFI callback that
-// re-enters Lua. Walk top-level windows with GetTopWindow + GetWindow(GW_HWNDNEXT)
-// instead — pure Lua loop, no callback. No re-entry, no callback lifetime concerns.
+// Walk windows with GetTopWindow/GetWindow (pure loop) — never EnumWindows with an FFI callback,
+// which crashes the Millennium Lua VM.
 HWND GetTopWindow(HWND hWndParent);
 HWND GetWindow(HWND hWnd, UINT uCmd);
 DWORD GetWindowThreadProcessId(HWND hWnd, DWORD* lpdwProcessId);
@@ -180,10 +169,14 @@ local function EnableRoundedCorners(hwnd)
 end
 
 local function PatchWindowContext(hwnd)
+    -- Skip if the window died since the PID lookup; a DWM call on a freed HWND access-violates.
+    if user32.IsWindow(hwnd) == 0 then return end
     if IS_CORNER_PREFERENCE_COMPATIBLE then
         local ok = EnableRoundedCorners(hwnd)
         if not ok then logger:error("EnableRoundedCorners failed") end
     end
+
+    if user32.IsWindow(hwnd) == 0 then return end
     if IS_BLUR_BEHIND_COMPATIBLE then
         local ok = EnableBlurBehind(hwnd)
         if not ok then logger:error("EnableBlurBehind failed") end
@@ -216,9 +209,7 @@ function PatchAllWindows()
     local target_set = {}
     for _, pid in ipairs(targets) do target_set[pid] = true end
 
-    -- Walk top-level windows in Z-order using GetTopWindow + GetWindow(GW_HWNDNEXT).
-    -- This is a pure Lua loop calling Win32 functions one at a time — no FFI callback,
-    -- no re-entrant Lua-from-C. Avoids the millennium.luavm64.exe crash at offset 0x789EF.
+    -- Walk top-level windows in Z-order (pure loop, no FFI callback).
     local hwnd = user32.GetTopWindow(nil)
     local visited = 0
     local patched = 0
@@ -256,9 +247,7 @@ end
 
 local function on_frontend_loaded()
     logger:info("Frontend loaded")
-    -- Kitsune fix: upstream left a placeholder "classname.method" call here that errors.
-    -- Replace it with actual patching of all current steamwebhelper.exe windows so the
-    -- main Steam window (created natively before the JS hook installs) also gets transparent.
+    -- Patch existing windows (incl. the main one, created before the JS hook installs).
     PatchAllWindows()
 end
 
