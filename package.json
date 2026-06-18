@@ -5,7 +5,7 @@
   },
   "type": "module",
   "name": "kitsune-mica",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Mica/acrylic backdrop for the Steam client.",
   "main": "./frontend/index.jsx",
   "author": "Kitsune",

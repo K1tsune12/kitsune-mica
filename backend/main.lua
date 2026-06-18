@@ -71,6 +71,8 @@ typedef struct _WINDOWCOMPOSITIONATTRIBDATA {
 } WINDOWCOMPOSITIONATTRIBDATA;
 
 BOOL SetWindowCompositionAttribute(HWND hWnd, WINDOWCOMPOSITIONATTRIBDATA* data);
+typedef struct { LONG left; LONG top; LONG right; LONG bottom; } RECT;
+BOOL GetWindowRect(HWND hWnd, RECT* lpRect);
 ]]
 
 local C = ffi.C
@@ -97,6 +99,17 @@ local PATCH_THROTTLE_MS = 3000
 -- Hard cap on window iteration. Desktop Z-order is typically <1k top-level windows;
 -- 10k is a safety net against any future Win11 weirdness producing a cyclic list.
 local MAX_WINDOW_ITER = 10000
+
+-- Skip short windows (notification toasts are ~50-250px tall). They are transient and get
+-- moved around by other plugins, so patching them races and can crash; they don't need a
+-- backdrop anyway. Real windows (main client, dialogs) are taller than this.
+local MIN_PATCH_HEIGHT = 320
+local g_rect = ffi.new("RECT")
+local function is_toast_sized(hwnd)
+    if user32.GetWindowRect(hwnd, g_rect) == 0 then return false end  -- can't measure: don't skip
+    local h = g_rect.bottom - g_rect.top
+    return h > 0 and h < MIN_PATCH_HEIGHT
+end
 
 -- cast wchar to utf8 string. 
 -- 260 == MAX_PATH, we assume steam is not running from a path longer than that.
@@ -217,7 +230,7 @@ function PatchAllWindows()
     while hwnd ~= nil and visited < MAX_WINDOW_ITER do
         visited = visited + 1
         local pid = pid_of(hwnd)
-        if pid ~= 0 and target_set[pid] then
+        if pid ~= 0 and target_set[pid] and not is_toast_sized(hwnd) then
             local ok, err = pcall(PatchWindowContext, hwnd)
             if ok then
                 patched = patched + 1
