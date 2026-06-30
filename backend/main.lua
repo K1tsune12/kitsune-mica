@@ -111,14 +111,20 @@ local function is_toast_sized(hwnd)
     return h > 0 and h < MIN_PATCH_HEIGHT
 end
 
+-- Reused cdata buffers for the window walk. Per-call ffi.new (esp. in pid_of, which runs for EVERY
+-- window) piles up GC pressure, and that is what tickles the Millennium Lua-VM bug (NULL+0x91)
+-- during bursts of windows. These are NOT in the blur path, so reusing them can't affect the blur.
+local g_pid_out     = ffi.new("DWORD[1]")
+local g_name_buf    = ffi.new("char[260]")
+local g_corner_pref = ffi.new("int[1]", DWMWCP_ROUND)
+
 -- cast wchar to utf8 string. 
 -- 260 == MAX_PATH, we assume steam is not running from a path longer than that.
 -- that is likely a safe assumption (I hope).
 local function wchar_to_utf8(wstr)
-    local outbuf = ffi.new("char[260]")
-    local res = C.WideCharToMultiByte(CP_UTF8, 0, wstr, -1, outbuf, 260, nil, nil)
+    local res = C.WideCharToMultiByte(CP_UTF8, 0, wstr, -1, g_name_buf, 260, nil, nil)
     if res == 0 then return nil end
-    return ffi.string(outbuf)
+    return ffi.string(g_name_buf)
 end
 
 -- find all process IDs matching the given executable name (case insensitive)
@@ -176,8 +182,7 @@ local function EnableBlurBehind(hwnd)
 end
 
 local function EnableRoundedCorners(hwnd)
-    local pref = ffi.new("int[1]", DWMWCP_ROUND)
-    local hr = dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, pref, ffi.sizeof(pref))
+    local hr = dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, g_corner_pref, ffi.sizeof(g_corner_pref))
     return hr == 0
 end
 
@@ -201,10 +206,9 @@ local function pid_of(hwnd)
     if hwnd == nil then return 0 end
     -- IsWindow returns BOOL; treat 0 as invalid.
     if user32.IsWindow(hwnd) == 0 then return 0 end
-    local out = ffi.new("DWORD[1]")
-    local tid = C.GetWindowThreadProcessId(hwnd, out)
+    local tid = C.GetWindowThreadProcessId(hwnd, g_pid_out)
     if tid == 0 then return 0 end
-    return tonumber(out[0]) or 0
+    return tonumber(g_pid_out[0]) or 0
 end
 
 function PatchAllWindows()
