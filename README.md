@@ -26,6 +26,7 @@ pnpm build
 
 ## Changelog
 
+- **v1.0.5** - Reduced crashes during heavy notification activity (promotions, lots of notifications at once).
 - **v1.0.4** - Fixed a crash that could happen when a notification appeared right after Steam opened.
 - **v1.0.3** - Fixed an occasional crash when launching Steam. Minor cleanup.
 - **v1.0.2** - Fixed a Steam client crash.
