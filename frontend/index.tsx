@@ -1,4 +1,5 @@
-import { callable, ConfirmModal, pluginSelf, showModal } from '@steambrew/client';
+import { callable, ConfirmModal, definePlugin, DialogControlsSection, IconsModule, pluginSelf, showModal } from '@steambrew/client';
+import { UpdateCheckField } from './UpdateCheck';
 
 type OriginalOpenFunction = (url?: string | URL, target?: string, features?: string, replace?: boolean) => Window | null;
 const originalOpen: OriginalOpenFunction = window.open;
@@ -30,10 +31,23 @@ window.open = function (url?: string | URL, target?: string, features?: string, 
 
 const ShowAlertMessage = (strTitle: string, strMessage: string) => showModal(<ConfirmModal strTitle={strTitle} strDescription={strMessage} />);
 
-export default async function PluginMain() {
+// Settings page in Millennium's sidebar. Mica has no options of its own yet,
+// so the page only holds the update check.
+const SettingsPanel = () => (
+	<DialogControlsSection>
+		<UpdateCheckField />
+	</DialogControlsSection>
+);
+
+export default definePlugin(() => {
 	pluginSelf.ShowAlertMessage = ShowAlertMessage;
 	// Kitsune fix: patch the main Steam window (and any other already-open windows) on plugin load.
 	// Upstream dwmx only patches via the window.open hook above, which misses the main window
 	// since it's created natively by CEF before this hook runs.
 	callable<[]>('PatchAllWindows')();
-}
+	return {
+		title: 'Kitsune Mica',
+		icon: <IconsModule.Settings />,
+		content: <SettingsPanel />,
+	} as any;
+});
