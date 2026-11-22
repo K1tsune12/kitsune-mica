@@ -26,8 +26,13 @@ window.open = function (url?: string | URL, target?: string, features?: string, 
 		url = parsedUrl.toString();
 	}
 
-	callable<[]>('PatchAllWindows')();
-	return originalOpen(url, target, features, replace);
+	// The new window only exists after originalOpen returns, so patch afterwards.
+	// The backend throttles calls to one per 3 s; the second pass catches windows
+	// that open while a previous patch was still inside that window.
+	const win = originalOpen(url, target, features, replace);
+	setTimeout(() => callable<[]>('PatchAllWindows')(), 500);
+	setTimeout(() => callable<[]>('PatchAllWindows')(), 3600);
+	return win;
 };
 
 const ShowAlertMessage = (strTitle: string, strMessage: string) => showModal(<ConfirmModal strTitle={strTitle} strDescription={strMessage} />);
