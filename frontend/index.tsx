@@ -5,7 +5,8 @@ type OriginalOpenFunction = (url?: string | URL, target?: string, features?: str
 const originalOpen: OriginalOpenFunction = window.open;
 
 const Patches = {
-	TARGET_WINDOW_FLAG: [4114, 2],
+	// 18 is the friends list and chat windows; 274 adds the flag that lets DWM blur show through.
+	TARGET_WINDOW_FLAG: [4114, 2, 18],
 	NEW_WINDOW_FLAG: 274,
 };
 
